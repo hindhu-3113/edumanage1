@@ -2,6 +2,41 @@
 
 EduManage is a student management dashboard built with Next.js 16, TypeScript, Tailwind CSS 4, Prisma 6, and SQLite. It runs locally and does not require a paid service.
 
+## Authentication setup for an existing database
+
+Phase 5 adds administrator/staff accounts and authentication tables without changing existing education records. Do not use `prisma migrate reset`. From the project folder, install dependencies, regenerate Prisma clients, and apply only pending additive migrations:
+
+```powershell
+Set-Location "C:\Users\ADMIN\Documents\edumanage1"
+npm.cmd install
+npx.cmd prisma generate --generator authClient
+npx.cmd prisma migrate deploy
+```
+
+Create a persistent local secret without printing it or replacing other `.env.local` settings:
+
+```powershell
+if (-not (Test-Path .env.local)) { New-Item -ItemType File -Path .env.local | Out-Null }
+if (-not (Select-String -Path .env.local -Pattern '^AUTH_SECRET=' -Quiet)) {
+  $secret = node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+  Add-Content -Path .env.local -Value "AUTH_SECRET=$secret"
+}
+```
+
+Create the first administrator interactively; the password prompt does not echo the entered password:
+
+```powershell
+npm.cmd run db:create-admin
+```
+
+The command refuses to create a second initial administrator. Use the sign-in page after creating the account, then start the application with `npm.cmd run dev`. For production, configure a unique `AUTH_SECRET` in the deployment secret manager; production startup fails when it is missing. `.env.example` contains placeholders only. Do not put credentials in command-line arguments, source files, or logs.
+
+For self-hosted production behind a trusted reverse proxy, also set `AUTH_TRUST_HOST=true` after configuring the proxy to validate incoming host headers. The development server must start after `.env.local` is created to use its persistent `AUTH_SECRET`; restart an already-running dev server when convenient.
+
+Anyone may create an account from `/signup`; public registration always creates an active STAFF account, even if a caller submits a different role. ADMIN accounts are provisioned separately with the secure setup command or by an ADMIN from User Management. STAFF can use the regular operational modules, including their existing CRUD and payment/attendance workflows, but cannot access User Management or Settings. The centralized server policy protects pages and API requests, including deletion and export APIs. Passwords are bcrypt hashes, login is throttled after five failed attempts per email for 15 minutes, sessions expire after eight hours, and logout/deactivation revokes the database-backed session. The in-memory throttle is per application process; deployments with multiple instances should use a shared rate-limit store.
+
+To create a STAFF account, open the sign-in page and select **Create an account**, or visit `/signup`. Enter your full name, email, and a password that is 12–128 characters and includes lowercase, uppercase, numeric, and special characters; confirm the password and submit. After the success message, sign in with that email and password. Duplicate email addresses are rejected. The public form and registration API do not allow ADMIN role assignment.
+
 ## First-time setup (PowerShell)
 
 Use Node.js 20.9 or newer. From the existing project folder, run:
@@ -12,10 +47,9 @@ npm.cmd install
 npm.cmd run db:generate
 npm.cmd run db:migrate -- --name init
 npm.cmd run db:seed
-npm.cmd run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The SQLite database is `dev.db` in the project root and is created by the migration command. The sample seed can be run again safely; it uses upserts.
+Generate a local authentication secret and create the first administrator before starting the application. Follow the [authentication setup](#authentication-setup-for-an-existing-database) instructions above. The SQLite database is `dev.db` in the project root; the sample seed can be run again safely and uses upserts.
 
 For later runs, start the app with:
 
@@ -38,6 +72,7 @@ npm.cmd run dev
 - Student risk analysis based on recorded attendance and valid academic results, with explainable support indicators, optional trend review when at least three results exist, and a dashboard summary.
 - Weekly timetable management with class, subject, teacher, day, time, room, and academic-year fields; overlapping class/teacher schedules are rejected.
 - Announcement board with categorized campus updates, priority filters, published and expiry dates, and add/edit/delete management.
+- Auth.js credentials login, bcrypt password hashes, eight-hour revocable sessions, ADMIN/STAFF authorization, protected APIs and pages, and administrator-managed accounts.
 - Per-student QR attendance codes with manual lookup fallback; scans save to the same attendance records as manual marking.
 - Idempotent sample teacher/subject catalog records with department, class, and teacher assignments.
 - Database-backed Excel (`.xlsx`) and PDF exports for students, attendance, fees/payment history, student performance, teachers, and subjects.
@@ -115,7 +150,7 @@ When no development server is running, `npm.cmd run db:generate` generates both 
 npm.cmd run db:seed-fees
 ```
 
-Student records with fee accounts are protected from deletion so the payment ledger is not lost. The current application does not implement authentication or role-based access; fee APIs follow its existing access pattern and should not be exposed publicly until authentication is added.
+Student records with fee accounts are protected from deletion so the payment ledger is not lost. Fee and payment endpoints require an authenticated account.
 
 ### Applying Phase 4.2 to an existing database
 
@@ -130,7 +165,7 @@ npm.cmd run db:seed-performance
 
 The sample seed creates clearly marked `SAMPLE TEST` exam records only when the student/subject/exam combination does not already exist. Performance records can be created, edited, searched by student, filtered by subject or exam, and sorted on the Performance page. Duplicate student/subject/exam combinations are rejected; distinct exam names remain separate records. Marks support up to two decimal places and percentages are calculated from the saved marks.
 
-Performance is summarized in the dashboard and student analysis page. Students or subjects with associated performance history cannot be deleted until that history is removed. Like the rest of the application, these APIs currently follow the project’s existing no-authentication pattern; add authentication before exposing the app publicly.
+Performance is summarized in the dashboard and student analysis page. Students or subjects with associated performance history cannot be deleted until that history is removed. Performance APIs require an authenticated account.
 
 ### Applying Phase 4.3 to an existing database
 
@@ -158,7 +193,7 @@ npx.cmd prisma migrate deploy
 npm.cmd run db:seed-timetable
 ```
 
-The sample seed uses existing sample subject/class/teacher assignments, skips matching or conflicting entries, and can be rerun safely. The dashboard shows today's schedule. Timetable records protect their related class, subject, and teacher from deletion until the schedule entry is removed. The current application does not implement authentication or role-based access; timetable APIs follow its existing access pattern.
+The sample seed uses existing sample subject/class/teacher assignments, skips matching or conflicting entries, and can be rerun safely. The dashboard shows today's schedule. Timetable records protect their related class, subject, and teacher from deletion until the schedule entry is removed. Timetable APIs require an authenticated account.
 
 ### Applying Phase 4.5 to an existing database
 
@@ -173,7 +208,7 @@ npm.cmd run db:seed-student-qr
 
 The seed generates a random 256-bit opaque token only for students without one; reruns are safe. New students receive a token when created. QR payloads contain only the opaque token, not personal information. The camera library is loaded only after the user explicitly starts the scanner. Browser camera access requires permission and a secure context (HTTPS or localhost).
 
-Student records do not currently have a class relationship. The QR attendance form requires a class to identify the session, but cannot verify that an individual student belongs to that class. The token is a bearer code and does not establish the identity of its holder. This application has no authentication or role-based access, so QR retrieval and attendance endpoints are not production-secure and should not be exposed publicly before access controls are implemented.
+Student records do not currently have a class relationship. The QR attendance form requires a class to identify the session, but cannot verify that an individual student belongs to that class. The token is a bearer code and does not establish the identity of its holder. QR retrieval and attendance endpoints require an authenticated account.
 
 ## API routes
 
@@ -199,3 +234,6 @@ Student records do not currently have a class relationship. The QR attendance fo
 - `GET /api/students/[id]/qr`
 - `GET /api/departments`
 - `GET /api/exports/[report]?format=xlsx|pdf`
+- `GET, POST /api/auth/[...nextauth]` (Auth.js session and credentials endpoints)
+- `GET, POST /api/users` and `PATCH /api/users/[id]` (ADMIN only)
+- `POST /api/auth/register` (public STAFF-only registration)

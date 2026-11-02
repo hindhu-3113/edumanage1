@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator feeClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-fee"
+}
+
+generator performanceClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-performance"
+}
+
+generator reportClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-report"
+}
+
+generator timetableClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-timetable"
+}
+
+generator qrClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-qr"
+}
+
+generator announcementClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-announcement"
+}
+
+generator authClient {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-auth"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../dev.db"
+}
+
+model Department {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  code      String    @unique
+  students  Student[]
+  teachers  Teacher[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Student {
+  id                 String              @id @default(cuid())
+  name               String
+  registerNo         String              @unique
+  email              String              @unique
+  phone              String
+  status             String              @default("ENROLLED")
+  academicYear       String
+  departmentId       String
+  department         Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  attendance         Attendance[]
+  feeRecord          FeeRecord?
+  performanceRecords PerformanceRecord[]
+  qrToken            String?             @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([departmentId])
+  @@index([academicYear])
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+  @@index([date])
+}
+
+model Teacher {
+  id               String           @id @default(cuid())
+  name             String
+  email            String           @unique
+  phone            String?
+  qualification    String?
+  departmentId     String?
+  isSample         Boolean          @default(false)
+  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  subjects         SubjectTeacher[]
+  timetableEntries TimetableEntry[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([departmentId])
+}
+
+model Class {
+  id               String           @id @default(cuid())
+  name             String
+  academicYear     String
+  section          String
+  subjects         ClassSubject[]
+  feeRecords       FeeRecord[]
+  timetableEntries TimetableEntry[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([name, academicYear, section])
+}
+
+model Subject {
+  id                 String              @id @default(cuid())
+  name               String
+  code               String              @unique
+  isSample           Boolean             @default(false)
+  classes            ClassSubject[]
+  teachers           SubjectTeacher[]
+  performanceRecords PerformanceRecord[]
+  timetableEntries   TimetableEntry[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model ClassSubject {
+  classId   String
+  subjectId String
+  class     Class   @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([classId, subjectId])
+  @@index([subjectId])
+}
+
+model SubjectTeacher {
+  teacherId String
+  subjectId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, subjectId])
+  @@index([subjectId])
+}
+
+model FeeRecord {
+  id               String       @id @default(cuid())
+  studentId        String       @unique
+  classId          String?
+  totalAmountPaise Int
+  amountPaidPaise  Int          @default(0)
+  dueDate          DateTime
+  isSample         Boolean      @default(false)
+  student          Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  class            Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  payments         FeePayment[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([classId])
+  @@index([dueDate])
+}
+
+model FeePayment {
+  id                   String    @id @default(cuid())
+  feeRecordId          String
+  amountPaise          Int
+  paymentDate          DateTime
+  paymentMethod        String
+  transactionReference String?
+  description          String?
+  receiptNumber        String    @unique
+  idempotencyKey       String    @unique
+  balanceAfterPaise    Int
+  statusAfter          String
+  feeRecord            FeeRecord @relation(fields: [feeRecordId], references: [id], onDelete: Restrict)
+  createdAt            DateTime  @default(now())
+
+  @@index([feeRecordId, paymentDate])
+  @@index([paymentDate])
+  @@index([statusAfter])
+}
+
+model PerformanceRecord {
+  id                      String   @id @default(cuid())
+  studentId               String
+  subjectId               String
+  examName                String
+  marksObtainedHundredths Int
+  maximumMarksHundredths  Int
+  isSample                Boolean  @default(false)
+  student                 Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subject                 Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([studentId, subjectId, examName])
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([examName])
+}
+
+model TimetableEntry {
+  id           String   @id @default(cuid())
+  classId      String
+  subjectId    String
+  teacherId    String
+  dayOfWeek    String
+  startTime    String
+  endTime      String
+  roomNumber   String
+  academicYear String?
+  isSample     Boolean  @default(false)
+  class        Class    @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher      Teacher  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([classId, dayOfWeek, startTime])
+  @@index([teacherId, dayOfWeek, startTime])
+  @@index([subjectId])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  priority    String   @default("MEDIUM")
+  publishedAt DateTime
+  expiresAt   DateTime?
+  isSample    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, priority])
+  @@index([publishedAt])
+  @@index([expiresAt])
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         String        @default("STAFF")
+  isActive     Boolean       @default(true)
+  sessions     AuthSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model AuthSession {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}

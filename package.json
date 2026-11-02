@@ -6,20 +6,49 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:create-admin": "node scripts/create-admin.mjs",
+    "db:seed": "prisma db seed",
+    "db:seed-fees": "node prisma/seed-fees.mjs",
+    "db:seed-performance": "node prisma/seed-performance.mjs",
+    "db:seed-sample-catalog": "node prisma/seed-sample-catalog.mjs",
+    "db:seed-timetable": "node prisma/seed-timetable.mjs",
+    "db:seed-student-qr": "node prisma/seed-student-qr.mjs",
+    "db:seed-announcements": "node prisma/seed-announcements.mjs",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   },
   "dependencies": {
+    "@prisma/client": "^6.12.0",
+    "@types/qrcode": "^1.5.6",
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "html5-qrcode": "^2.3.8",
     "next": "16.4.3",
+    "next-auth": "^5.0.0-beta.32",
+    "pdfkit": "^0.20.2",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.7",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "prisma": "^6.12.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
